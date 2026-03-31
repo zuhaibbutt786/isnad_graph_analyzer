@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Isnad Chain Analyzer · تحليل سلسلة الإسناد</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Georgia,"Times New Roman",serif;background:#080e18;color:#d4c5a9;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.header{background:#0f1923;border-bottom:1px solid #c8952a30;padding:10px 18px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.header-left{display:flex;align-items:center;gap:10px}
+.header-left h1{font-size:18px;color:#e4af4a;font-weight:normal;letter-spacing:.5px}
+.header-arabic{font-size:16px;color:#c8952a;font-family:"Traditional Arabic","Scheherazade New",serif;direction:rtl}
+.header-badges{display:flex;gap:6px}
+.hbadge{padding:2px 10px;border-radius:10px;font-size:10px;font-family:-apple-system,sans-serif;border:1px solid}
+.main{flex:1;display:grid;grid-template-columns:235px 1fr 275px;overflow:hidden;min-height:0}
+.panel{background:#0f1923;border-right:1px solid #1a2535;overflow-y:auto;display:flex;flex-direction:column}
+.panel-right{border-right:none;border-left:1px solid #1a2535}
+.psec{padding:10px 12px;border-bottom:1px solid #1a2535}
+.ptitle{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#475569;margin-bottom:7px;font-family:-apple-system,sans-serif}
+.graph-area{position:relative;background:#050b15;overflow:hidden}
+.graph-area svg{width:100%;height:100%}
+.graph-toolbar{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:3px}
+.tbtn{width:30px;height:30px;background:#0f1923cc;border:1px solid #1e293b;border-radius:5px;color:#64748b;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;font-family:-apple-system,sans-serif;transition:all .15s}
+.tbtn:hover{background:#1a2535;color:#e4af4a;border-color:#c8952a50}
+.legend{position:absolute;bottom:14px;left:14px;background:#0f1923dd;border:1px solid #1e293b;border-radius:7px;padding:9px 11px;font-size:10px;font-family:-apple-system,sans-serif}
+.legend-item{display:flex;align-items:center;gap:5px;margin-bottom:3px;color:#64748b}
+.ldot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.tooltip{position:absolute;pointer-events:none;background:#1a2535;border:1px solid #c8952a50;border-radius:6px;padding:8px 11px;font-size:11px;font-family:-apple-system,sans-serif;color:#d4c5a9;max-width:210px;z-index:100;opacity:0;transition:opacity .15s;line-height:1.5}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#1e293b;border-radius:2px}
+.form-label{font-size:10px;color:#475569;margin-bottom:2px;display:block;font-family:-apple-system,sans-serif}
+.finput,.fselect{width:100%;padding:4px 7px;background:#080e18;border:1px solid #1e293b;border-radius:3px;color:#d4c5a9;font-size:11px;font-family:-apple-system,sans-serif;margin-bottom:6px}
+.finput:focus,.fselect:focus{outline:none;border-color:#c8952a60}
+.btn{padding:4px 10px;border-radius:3px;border:1px solid;cursor:pointer;font-size:11px;font-family:-apple-system,sans-serif;transition:all .15s;background:#c8952a18;border-color:#c8952a70;color:#e4af4a}
+.btn:hover{background:#c8952a35}
+.gen-pills{display:flex;flex-wrap:wrap;gap:3px}
+.gpill{padding:2px 7px;border-radius:9px;font-size:9px;cursor:pointer;border:1px solid #1e293b;color:#475569;font-family:-apple-system,sans-serif;transition:all .15s}
+.gpill.active{border-color:#c8952a;color:#e4af4a;background:#c8952a12}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.stat-box{background:#080e18;border:1px solid #1e293b;border-radius:4px;padding:7px 8px;text-align:center}
+.sv{font-size:20px;color:#e4af4a;line-height:1;margin-bottom:2px;font-family:-apple-system,sans-serif}
+.sl{font-size:8px;color:#475569;text-transform:uppercase;letter-spacing:.5px;font-family:-apple-system,sans-serif}
+.narrator-arabic{font-size:20px;color:#e4af4a;font-family:"Traditional Arabic","Scheherazade New",serif;direction:rtl;text-align:right;margin-bottom:2px;line-height:1.5}
+.narrator-name{font-size:12px;color:#94a3b8;margin-bottom:8px;font-family:-apple-system,sans-serif}
+.meta-badges{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}
+.mbadge{padding:2px 7px;border-radius:3px;font-size:9px;font-family:-apple-system,sans-serif}
+.mbadge.thiqah{background:#10b98118;color:#10b981}.mbadge.sadooq{background:#60a5fa18;color:#60a5fa}
+.mbadge.daif{background:#f9731618;color:#f97316}.mbadge.majhul{background:#94a3b818;color:#94a3b8}
+.mbadge.kazzab{background:#ef444418;color:#ef4444}.mbadge.gen{background:#c8952a12;color:#c8952a;border:1px solid #c8952a35}
+.mbadge.neutral{background:#1e293b;color:#64748b}
+.mini-stats{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:8px}
+.mstat{background:#080e18;border:1px solid #1e293b;border-radius:3px;padding:5px 7px;text-align:center}
+.msv{font-size:16px;color:#e4af4a;line-height:1;margin-bottom:1px}
+.msl{font-size:8px;color:#475569;text-transform:uppercase;letter-spacing:.3px;font-family:-apple-system,sans-serif}
+.bio{font-size:10px;color:#64748b;line-height:1.6;font-family:-apple-system,sans-serif;margin-bottom:6px}
+.conn-section{margin-top:6px}
+.conn-title{font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#334155;margin-bottom:3px;font-family:-apple-system,sans-serif}
+.conn-list{font-size:10px;color:#475569;font-family:-apple-system,sans-serif;line-height:1.7}
+.analysis-box{background:#080e18;border:1px solid #1e293b;border-radius:5px;padding:9px 10px;margin-bottom:6px}
+.chain-row{display:flex;flex-wrap:wrap;align-items:center;gap:3px;margin-top:5px}
+.cnode{padding:2px 5px;background:#111827;border:1px solid #1e293b;border-radius:2px;font-size:9px;color:#d4c5a9;font-family:-apple-system,sans-serif}
+.carrw{color:#c8952a;font-size:9px}
+.mbar-wrap{height:3px;background:#1e293b;border-radius:2px;margin-top:2px}
+.mbar-fill{height:100%;background:#c8952a;border-radius:2px;transition:width .3s}
+.collapsible{overflow:hidden;transition:max-height .3s ease;max-height:0}
+.collapsible.open{max-height:500px}
+.ctoggle{display:flex;justify-content:space-between;align-items:center;cursor:pointer}
+.ctoggle:hover .ptitle{color:#94a3b8}
+#no-sel{text-align:center;padding:22px 0;color:#1e293b}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <h1>Isnad Chain Analyzer</h1>
+    <span class="header-arabic">تحليل سلسلة الإسناد</span>
+    <span class="hbadge" style="border-color:#10b98140;color:#10b981;background:#10b98110">Graph Theory</span>
+  </div>
+  <div class="header-badges">
+    <span class="hbadge" style="border-color:#c8952a40;color:#c8952a;background:#c8952a10" id="hdr-info">24 narrators · 41 links</span>
+    <button class="btn" style="font-size:10px;padding:2px 8px" onclick="resetView()">Reset View</button>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- LEFT PANEL -->
+  <div class="panel">
+    <div class="psec">
+      <div class="ptitle">Filter by Generation</div>
+      <div class="gen-pills" id="gen-pills">
+        <span class="gpill active" data-gen="all">All</span>
+        <span class="gpill" data-gen="0">Prophet ﷺ</span>
+        <span class="gpill" data-gen="1">Ṣaḥāba</span>
+        <span class="gpill" data-gen="2">Tābiʿūn</span>
+        <span class="gpill" data-gen="3">Atbāʿ</span>
+        <span class="gpill" data-gen="4">Imāms</span>
+        <span class="gpill" data-gen="5">Compilers</span>
+      </div>
+    </div>
+
+    <div class="psec">
+      <div class="ptitle">Reliability Filter</div>
+      <div id="rel-filters" style="display:flex;flex-direction:column;gap:5px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:#64748b;cursor:pointer;font-family:-apple-system,sans-serif"><input type="checkbox" checked data-rel="thiqah" style="accent-color:#10b981"><span style="color:#10b981">●</span> Thiqah (Trustworthy)</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:#64748b;cursor:pointer;font-family:-apple-system,sans-serif"><input type="checkbox" checked data-rel="sadooq" style="accent-color:#60a5fa"><span style="color:#60a5fa">●</span> Sadooq (Acceptable)</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:#64748b;cursor:pointer;font-family:-apple-system,sans-serif"><input type="checkbox" checked data-rel="daif" style="accent-color:#f97316"><span style="color:#f97316">●</span> Daʿīf (Weak)</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:#64748b;cursor:pointer;font-family:-apple-system,sans-serif"><input type="checkbox" checked data-rel="majhul" style="accent-color:#94a3b8"><span style="color:#94a3b8">●</span> Majhūl (Unknown)</label>
+      </div>
+    </div>
+
+    <div class="psec">
+      <div class="ptitle">Path Analysis</div>
+      <label class="form-label">From Narrator</label>
+      <select class="fselect" id="path-from"></select>
+      <label class="form-label">To Narrator</label>
+      <select class="fselect" id="path-to"></select>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px">
+        <button class="btn" onclick="findShortestPath()">Shortest Path</button>
+        <button class="btn" onclick="findAllPathsUI()">All Chains</button>
+      </div>
+    </div>
+
+    <div class="psec">
+      <div class="ptitle">Graph Analysis</div>
+      <button class="btn" onclick="detectCycles()" style="width:100%;margin-bottom:4px">Detect Cycles (DAG check)</button>
+      <button class="btn" onclick="calcBetweenness()" style="width:100%;margin-bottom:4px">Betweenness Centrality</button>
+      <button class="btn" onclick="showClusterInfo()" style="width:100%">Connected Components</button>
+    </div>
+
+    <div class="psec">
+      <div class="ctoggle" onclick="toggleCollapse('add-nar')">
+        <div class="ptitle" style="margin:0">Add Narrator</div>
+        <span style="color:#334155;font-size:10px" id="arr-add-nar">▶</span>
+      </div>
+      <div class="collapsible" id="add-nar">
+        <div style="margin-top:8px">
+          <label class="form-label">Name (English)</label>
+          <input class="finput" id="nn-name" placeholder="Ibn Kathir">
+          <label class="form-label">Arabic Name</label>
+          <input class="finput" id="nn-arabic" placeholder="ابن كثير" style="direction:rtl;font-family:serif">
+          <label class="form-label">Generation</label>
+          <select class="fselect" id="nn-gen">
+            <option value="1">Ṣaḥāba (1st Gen)</option>
+            <option value="2">Tābiʿūn (2nd Gen)</option>
+            <option value="3">Atbāʿ (3rd Gen)</option>
+            <option value="4">Imāms (4th Gen)</option>
+            <option value="5">Compilers (5th Gen)</option>
+          </select>
+          <label class="form-label">Reliability</label>
+          <select class="fselect" id="nn-rel">
+            <option value="thiqah">Thiqah</option>
+            <option value="sadooq">Sadooq</option>
+            <option value="daif">Daʿif</option>
+            <option value="majhul">Majhūl</option>
+          </select>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            <div><label class="form-label">Death (AH)</label><input class="finput" id="nn-death" type="number" placeholder="256"></div>
+            <div><label class="form-label">Location</label><input class="finput" id="nn-loc" placeholder="Baghdad"></div>
+          </div>
+          <button class="btn" onclick="addNarrator()" style="width:100%;margin-top:2px">Add to Graph</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="psec">
+      <div class="ctoggle" onclick="toggleCollapse('add-edge')">
+        <div class="ptitle" style="margin:0">Add Transmission Link</div>
+        <span style="color:#334155;font-size:10px" id="arr-add-edge">▶</span>
+      </div>
+      <div class="collapsible" id="add-edge">
+        <div style="margin-top:8px">
+          <label class="form-label">From (Teacher)</label>
+          <select class="fselect" id="ef-from"></select>
+          <label class="form-label">To (Student)</label>
+          <select class="fselect" id="ef-to"></select>
+          <label class="form-label">Method of Transmission</label>
+          <select class="fselect" id="ef-method">
+            <option value="سماع">سماع — Direct Hearing</option>
+            <option value="إجازة">إجازة — Written Permission</option>
+            <option value="وجادة">وجادة — Found Writing</option>
+            <option value="مناولة">مناولة — Passing of Book</option>
+          </select>
+          <button class="btn" onclick="addEdge()" style="width:100%">Add Link</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GRAPH AREA -->
+  <div class="graph-area" id="graph-container">
+    <svg id="graph-svg"></svg>
+    <div class="graph-toolbar">
+      <button class="tbtn" title="Zoom In" onclick="zoomIn()">+</button>
+      <button class="tbtn" title="Zoom Out" onclick="zoomOut()">−</button>
+      <button class="tbtn" title="Fit to Screen" onclick="fitGraph()" style="font-size:11px">⊞</button>
+      <button class="tbtn" title="Reset" onclick="resetView()" style="font-size:10px">↺</button>
+    </div>
+    <div class="legend">
+      <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#334155;margin-bottom:5px;font-family:-apple-system,sans-serif">Reliability</div>
+      <div class="legend-item"><div class="ldot" style="background:#10b981"></div>Thiqah</div>
+      <div class="legend-item"><div class="ldot" style="background:#60a5fa"></div>Sadooq</div>
+      <div class="legend-item"><div class="ldot" style="background:#f97316"></div>Daʿīf</div>
+      <div class="legend-item"><div class="ldot" style="background:#94a3b8"></div>Majhūl</div>
+      <div style="border-top:1px solid #1e293b;margin:5px 0 3px"></div>
+      <div class="legend-item" style="color:#c8952a">— سماع (Hearing)</div>
+      <div class="legend-item" style="color:#4b5563">- - إجازة (Permission)</div>
+      <div style="border-top:1px solid #1e293b;margin:5px 0 3px"></div>
+      <div style="font-size:8px;color:#334155;font-family:-apple-system,sans-serif">Node size = degree centrality<br>Ring color = generation</div>
+    </div>
+    <div class="tooltip" id="tooltip"></div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="panel panel-right">
+    <div class="psec">
+      <div class="ptitle">Network Statistics</div>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="sv" id="sn">0</div><div class="sl">Narrators</div></div>
+        <div class="stat-box"><div class="sv" id="se">0</div><div class="sl">Transmissions</div></div>
+        <div class="stat-box"><div class="sv" id="sd">0</div><div class="sl">Density</div></div>
+        <div class="stat-box"><div class="sv" id="sc">0</div><div class="sl">Total Chains</div></div>
+      </div>
+    </div>
+
+    <div class="psec" id="narrator-detail" style="display:none">
+      <div class="ptitle">Selected Narrator</div>
+      <div id="narrator-card"></div>
+    </div>
+
+    <div class="psec" id="no-sel">
+      <div style="font-size:28px;margin-bottom:8px">🕌</div>
+      <div style="font-size:11px;color:#334155;font-family:-apple-system,sans-serif">Click any narrator node<br>to explore details</div>
+    </div>
+
+    <div class="psec" id="analysis-out" style="display:none">
+      <div class="ptitle">Analysis Results</div>
+      <div id="analysis-content"></div>
+    </div>
+
+    <div class="psec">
+      <div class="ptitle">Degree Centrality Ranking</div>
+      <div id="centrality-list"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// DATA — Pre-loaded Isnad Networks
+// ═══════════════════════════════════════════════════════
+
+let narrators = [
+  {id:"prophet",name:"Prophet Muhammad ﷺ",arabic:"محمد رسول الله ﷺ",generation:0,reliability:"thiqah",death:null,location:"Medina",bio:"The Messenger of Allah, the ultimate source and authority of all authentic hadith. The chain of transmission begins and ends with his words and actions."},
+  {id:"umar",name:"Umar ibn al-Khattab",arabic:"عمر بن الخطاب",generation:1,reliability:"thiqah",death:23,location:"Medina",bio:"Second Caliph of Islam, one of the most prolific Companions. Primary narrator of the famous Hadith of Intentions (إنما الأعمال بالنيات)."},
+  {id:"abu_huraira",name:"Abu Huraira al-Dawsi",arabic:"أبو هريرة الدوسي",generation:1,reliability:"thiqah",death:57,location:"Medina",bio:"Narrated over 5,374 hadith, more than any other Companion. Devoted his life to memorizing and transmitting the Prophet's traditions."},
+  {id:"aisha",name:"ʿĀʾisha bint Abī Bakr",arabic:"عائشة بنت أبي بكر",generation:1,reliability:"thiqah",death:58,location:"Medina",bio:"Mother of the Believers, scholar of jurisprudence and hadith. Narrated 2,210 traditions. Corrected many Companions' misunderstandings."},
+  {id:"ibn_umar",name:"ʿAbdullāh ibn ʿUmar",arabic:"عبدالله بن عمر",generation:1,reliability:"thiqah",death:73,location:"Medina",bio:"Son of Umar ibn al-Khattab. Second most prolific narrator (2,630 hadith). Known for strictly following the Prophet's Sunnah."},
+  {id:"alqama",name:"ʿAlqama ibn Waqqāṣ al-Laythī",arabic:"علقمة بن وقاص الليثي",generation:2,reliability:"thiqah",death:73,location:"Medina",bio:"Early Tabi'i, key link in the Hadith of Intentions chain. Transmitted directly from Umar ibn al-Khattab."},
+  {id:"urwa",name:"ʿUrwa ibn al-Zubayr",arabic:"عروة بن الزبير",generation:2,reliability:"thiqah",death:94,location:"Medina",bio:"Nephew of Aisha bint Abi Bakr, one of the Seven Jurists of Medina. Major transmitter of Aisha's knowledge."},
+  {id:"qatada",name:"Qatāda ibn Diʿāma",arabic:"قتادة بن دعامة",generation:2,reliability:"thiqah",death:117,location:"Basra",bio:"Blind Tabi'i scholar famed for his extraordinary memory. Could recite everything heard just once. Major hadith transmitter of Basra."},
+  {id:"ibn_shihab",name:"Ibn Shihāb al-Zuhrī",arabic:"ابن شهاب الزهري",generation:2,reliability:"thiqah",death:124,location:"Medina",bio:"'Sea of Knowledge'. The most prolific Tabi'i transmitter of hadith. Ordered by Caliph Umar II to compile hadith formally."},
+  {id:"muh_ibrahim",name:"Muḥammad ibn Ibrāhīm al-Tamīmī",arabic:"محمد بن إبراهيم التيمي",generation:2,reliability:"thiqah",death:120,location:"Medina",bio:"Tabi'i scholar, transmitted the Hadith of Intentions from Alqama ibn Waqqas to Yahya ibn Said al-Ansari."},
+  {id:"yahya_ansari",name:"Yaḥyā ibn Saʿīd al-Anṣārī",arabic:"يحيى بن سعيد الأنصاري",generation:2,reliability:"thiqah",death:144,location:"Medina",bio:"Judge (Qadi) of Medina. Major hadith transmitter. Critical link transmitting the Hadith of Intentions chain to later Imams."},
+  {id:"hisham",name:"Hishām ibn ʿUrwa",arabic:"هشام بن عروة",generation:3,reliability:"thiqah",death:146,location:"Medina",bio:"Son of Urwa ibn al-Zubayr, grandson of al-Zubayr ibn al-Awwam. Primary transmitter of Aisha's traditions via his father."},
+  {id:"abu_zinnad",name:"Abū al-Zinādd ʿAbdullāh",arabic:"أبو الزناد عبدالله بن ذكوان",generation:3,reliability:"thiqah",death:130,location:"Medina",bio:"One of the Seven Jurists' students in Medina. Important narrator whose chain through al-Araj to Abu Huraira is highly valued."},
+  {id:"amr_dinar",name:"ʿAmr ibn Dīnār",arabic:"عمرو بن دينار",generation:3,reliability:"thiqah",death:126,location:"Mecca",bio:"Meccan Tabi'i scholar, teacher of Ibn Uyayna. One of the most reliable transmitters of Companion narrations in Mecca."},
+  {id:"ayyub",name:"Ayyūb al-Sakhtiyānī",arabic:"أيوب السختياني",generation:3,reliability:"thiqah",death:131,location:"Basra",bio:"Master Tabi'i scholar of Basra. Known for his rigorous verification of hadith. Imam Malik and others held him in highest regard."},
+  {id:"sufyan",name:"Sufyān ibn ʿUyayna",arabic:"سفيان بن عيينة",generation:4,reliability:"thiqah",death:198,location:"Mecca",bio:"Imam of hadith in Mecca, remembered 70 years of narrations. Student of Amr ibn Dinar and Yahya al-Ansari. Over 800 students."},
+  {id:"malik",name:"Mālik ibn Anas",arabic:"مالك بن أنس",generation:4,reliability:"thiqah",death:179,location:"Medina",bio:"Founder of the Maliki school. Author of Al-Muwatta. Called 'Imam of the Abode of Hijra'. Never left Medina after the first Hajj."},
+  {id:"layth",name:"Al-Layth ibn Saʿd",arabic:"الليث بن سعد",generation:4,reliability:"thiqah",death:175,location:"Egypt",bio:"Greatest scholar of Egypt. Shafi'i said he was more learned than Malik. Generous and scholarly, but his school did not survive."},
+  {id:"abu_muawiya",name:"Abū Muʿāwiya al-Ḍarīr",arabic:"أبو معاوية الضرير",generation:4,reliability:"sadooq",death:195,location:"Kufa",bio:"Reliable narrator but known for some inaccuracies in hadiths other than those from Hisham ibn Urwa, where he was precise."},
+  {id:"ibn_mubarak",name:"ʿAbdullāh ibn al-Mubārak",arabic:"عبدالله بن المبارك",generation:4,reliability:"thiqah",death:181,location:"Khurasan",bio:"Scholar, warrior, and hadith master. Combined asceticism with scholarship. One of the most widely traveled hadith collectors."},
+  {id:"shafi",name:"Muḥammad al-Shāfiʿī",arabic:"محمد بن إدريس الشافعي",generation:4,reliability:"thiqah",death:204,location:"Egypt",bio:"Founder of the Shafi'i school. Established principles of Islamic jurisprudence (Usul al-Fiqh). Student of Malik and master of Hanafi thought."},
+  {id:"ahmad",name:"Aḥmad ibn Ḥanbal",arabic:"أحمد بن حنبل",generation:4,reliability:"thiqah",death:241,location:"Baghdad",bio:"Founder of Hanbali school, Imam of Ahl al-Sunna. Memorized one million hadiths. Endured imprisonment for refusing to accept Mutazilite doctrine."},
+  {id:"yahya_main",name:"Yaḥyā ibn Maʿīn",arabic:"يحيى بن معين",generation:5,reliability:"thiqah",death:233,location:"Baghdad",bio:"Master of narrator criticism (jarh wa taʿdil). His assessments of narrators' reliability are among the most authoritative in hadith science."},
+  {id:"ali_madini",name:"ʿAlī ibn al-Madīnī",arabic:"علي بن المديني",generation:5,reliability:"thiqah",death:234,location:"Baghdad",bio:"Direct teacher of Bukhari. Said of himself 'I have no equal in this science'. Greatest expert in hadith chains of his generation."},
+  {id:"bukhari",name:"Muḥammad al-Bukhārī",arabic:"محمد بن إسماعيل البخاري",generation:5,reliability:"thiqah",death:256,location:"Bukhara",bio:"Author of Sahih al-Bukhari, the most authenticated hadith collection after the Quran. Examined 600,000 hadith, accepted only 7,275."},
+  {id:"muslim",name:"Muslim ibn al-Ḥajjāj",arabic:"مسلم بن الحجاج",generation:5,reliability:"thiqah",death:261,location:"Nishapur",bio:"Author of Sahih Muslim, second most authenticated collection. Examined 300,000 hadith, selected 9,200 with 3,000 unique narrations."},
+];
+
+let edges = [
+  {source:"prophet",target:"umar",method:"سماع"},
+  {source:"prophet",target:"abu_huraira",method:"سماع"},
+  {source:"prophet",target:"aisha",method:"سماع"},
+  {source:"prophet",target:"ibn_umar",method:"سماع"},
+  {source:"umar",target:"alqama",method:"سماع"},
+  {source:"abu_huraira",target:"ibn_shihab",method:"سماع"},
+  {source:"abu_huraira",target:"qatada",method:"سماع"},
+  {source:"aisha",target:"urwa",method:"سماع"},
+  {source:"aisha",target:"ibn_shihab",method:"سماع"},
+  {source:"ibn_umar",target:"ibn_shihab",method:"سماع"},
+  {source:"ibn_umar",target:"abu_zinnad",method:"سماع"},
+  {source:"alqama",target:"muh_ibrahim",method:"سماع"},
+  {source:"urwa",target:"hisham",method:"سماع"},
+  {source:"urwa",target:"ibn_shihab",method:"سماع"},
+  {source:"muh_ibrahim",target:"yahya_ansari",method:"سماع"},
+  {source:"ibn_shihab",target:"malik",method:"سماع"},
+  {source:"ibn_shihab",target:"sufyan",method:"سماع"},
+  {source:"ibn_shihab",target:"layth",method:"سماع"},
+  {source:"ibn_shihab",target:"ayyub",method:"سماع"},
+  {source:"qatada",target:"ayyub",method:"سماع"},
+  {source:"amr_dinar",target:"sufyan",method:"سماع"},
+  {source:"amr_dinar",target:"ibn_mubarak",method:"سماع"},
+  {source:"hisham",target:"abu_muawiya",method:"سماع"},
+  {source:"hisham",target:"sufyan",method:"سماع"},
+  {source:"hisham",target:"ibn_mubarak",method:"سماع"},
+  {source:"abu_zinnad",target:"malik",method:"سماع"},
+  {source:"ayyub",target:"malik",method:"سماع"},
+  {source:"ayyub",target:"sufyan",method:"سماع"},
+  {source:"yahya_ansari",target:"sufyan",method:"سماع"},
+  {source:"yahya_ansari",target:"malik",method:"سماع"},
+  {source:"yahya_ansari",target:"layth",method:"إجازة"},
+  {source:"sufyan",target:"ahmad",method:"سماع"},
+  {source:"sufyan",target:"yahya_main",method:"سماع"},
+  {source:"sufyan",target:"ali_madini",method:"سماع"},
+  {source:"sufyan",target:"shafi",method:"سماع"},
+  {source:"malik",target:"shafi",method:"سماع"},
+  {source:"malik",target:"ahmad",method:"سماع"},
+  {source:"layth",target:"ahmad",method:"إجازة"},
+  {source:"abu_muawiya",target:"ahmad",method:"سماع"},
+  {source:"ibn_mubarak",target:"ahmad",method:"سماع"},
+  {source:"shafi",target:"ahmad",method:"سماع"},
+  {source:"ahmad",target:"bukhari",method:"سماع"},
+  {source:"ahmad",target:"muslim",method:"سماع"},
+  {source:"ali_madini",target:"bukhari",method:"سماع"},
+  {source:"yahya_main",target:"bukhari",method:"سماع"},
+  {source:"yahya_main",target:"muslim",method:"سماع"},
+];
+
+// ═══════════════════════════════════════════════════════
+// GRAPH THEORY ALGORITHMS
+// ═══════════════════════════════════════════════════════
+
+const GT = {
+  edgeId(e){ const s=typeof e.source==='object'?e.source.id:e.source; const t=typeof e.target==='object'?e.target.id:e.target; return {s,t}; },
+
+  degreeCentrality(narrs, eds){
+    const ind={}, outd={};
+    narrs.forEach(n=>{ind[n.id]=0;outd[n.id]=0;});
+    eds.forEach(e=>{const {s,t}=GT.edgeId(e); if(outd[s]!==undefined)outd[s]++; if(ind[t]!==undefined)ind[t]++;});
+    const res={};
+    const n=narrs.length;
+    narrs.forEach(nd=>{ const tot=ind[nd.id]+outd[nd.id]; res[nd.id]={in:ind[nd.id],out:outd[nd.id],total:tot,norm:n>1?tot/(n-1):0}; });
+    return res;
+  },
+
+  shortestPath(eds, src, tgt){
+    if(src===tgt)return[src];
+    const adj={};
+    eds.forEach(e=>{const {s,t}=GT.edgeId(e); if(!adj[s])adj[s]=[]; adj[s].push(t);});
+    const queue=[[src]], vis=new Set([src]);
+    while(queue.length){
+      const path=queue.shift(); const node=path[path.length-1];
+      for(const nb of(adj[node]||[])){
+        if(!vis.has(nb)){
+          const np=[...path,nb]; if(nb===tgt)return np;
+          vis.add(nb); queue.push(np);
+        }
+      }
+    }
+    return null;
+  },
+
+  allPaths(eds, src, tgt, maxD=20){
+    const adj={};
+    eds.forEach(e=>{const {s,t}=GT.edgeId(e); if(!adj[s])adj[s]=[]; adj[s].push(t);});
+    const res=[];
+    const dfs=(node,path,vis)=>{
+      if(path.length>maxD||res.length>60)return;
+      if(node===tgt){res.push([...path]);return;}
+      for(const nx of(adj[node]||[])){
+        if(!vis.has(nx)){vis.add(nx);path.push(nx);dfs(nx,path,vis);path.pop();vis.delete(nx);}
+      }
+    };
+    dfs(src,[src],new Set([src]));
+    return res;
+  },
+
+  detectCycles(narrs, eds){
+    const adj={};
+    narrs.forEach(n=>adj[n.id]=[]);
+    eds.forEach(e=>{const {s,t}=GT.edgeId(e); if(adj[s])adj[s].push(t);});
+    const W=0,G=1,B=2; const color={};
+    narrs.forEach(n=>color[n.id]=W);
+    const cycles=[];
+    const dfs=(node,path)=>{
+      color[node]=G;
+      for(const nx of(adj[node]||[])){
+        if(color[nx]===G){const idx=path.indexOf(nx); cycles.push(path.slice(idx).concat([nx]));}
+        else if(color[nx]===W) dfs(nx,[...path,nx]);
+      }
+      color[node]=B;
+    };
+    narrs.forEach(n=>{if(color[n.id]===W)dfs(n.id,[n.id]);});
+    return cycles;
+  },
+
+  betweenness(narrs, eds){
+    const ids=narrs.map(n=>n.id);
+    const adj={};
+    ids.forEach(id=>adj[id]=[]);
+    eds.forEach(e=>{const {s,t}=GT.edgeId(e); if(adj[s])adj[s].push(t);});
+    const bc={};
+    ids.forEach(id=>bc[id]=0);
+    for(const s of ids){
+      const sigma={},dist={},pred={},stack=[];
+      ids.forEach(id=>{sigma[id]=0;dist[id]=-1;pred[id]=[];});
+      sigma[s]=1;dist[s]=0;
+      const q=[s];
+      while(q.length){
+        const v=q.shift(); stack.push(v);
+        for(const w of(adj[v]||[])){
+          if(dist[w]<0){q.push(w);dist[w]=dist[v]+1;}
+          if(dist[w]===dist[v]+1){sigma[w]+=sigma[v];pred[w].push(v);}
+        }
+      }
+      const delta={};ids.forEach(id=>delta[id]=0);
+      while(stack.length){
+        const w=stack.pop();
+        for(const v of pred[w]) delta[v]+=(sigma[v]/sigma[w])*(1+delta[w]);
+        if(w!==s) bc[w]+=delta[w];
+      }
+    }
+    const n=ids.length;
+    if(n>2){const nm=(n-1)*(n-2); ids.forEach(id=>bc[id]/=nm);}
+    return bc;
+  },
+
+  connectedComponents(narrs, eds){
+    const adj={};
+    narrs.forEach(n=>adj[n.id]=new Set());
+    eds.forEach(e=>{
+      const {s,t}=GT.edgeId(e);
+      if(adj[s])adj[s].add(t);
+      if(adj[t])adj[t].add(s);
+    });
+    const vis=new Set(); const comps=[];
+    const bfs=(start)=>{
+      const comp=[]; const q=[start]; vis.add(start);
+      while(q.length){const node=q.shift(); comp.push(node); for(const nb of(adj[node]||new Set())){if(!vis.has(nb)){vis.add(nb);q.push(nb);}}}
+      return comp;
+    };
+    narrs.forEach(n=>{if(!vis.has(n.id)) comps.push(bfs(n.id));});
+    return comps;
+  },
+
+  chainGrade(path,narrs){
+    const sc={thiqah:5,sadooq:4,hasan:3,daif:2,majhul:1,kazzab:0};
+    const map={};narrs.forEach(n=>map[n.id]=n);
+    let min=5;
+    for(const id of path){const nd=map[id]; if(!nd)continue; const s=sc[nd.reliability]??1; if(s<min)min=s;}
+    if(min>=5)return{grade:'Ṣaḥīḥ',color:'#10b981'};
+    if(min===4)return{grade:'Ṣaḥīḥ li Ghayrihī',color:'#34d399'};
+    if(min===3)return{grade:'Ḥasan',color:'#60a5fa'};
+    if(min===2)return{grade:'Ḍaʿīf',color:'#f97316'};
+    return{grade:'Mawḍūʿ',color:'#ef4444'};
+  },
+
+  density(narrs,eds){ const n=narrs.length; if(n<2)return'0.000'; return(eds.length/(n*(n-1))).toFixed(3); }
+};
+
+// ═══════════════════════════════════════════════════════
+// D3 VISUALIZATION
+// ═══════════════════════════════════════════════════════
+
+const relColor={thiqah:'#10b981',sadooq:'#60a5fa',daif:'#f97316',majhul:'#94a3b8',kazzab:'#ef4444'};
+const genRing=['#FBBF24','#E2E8F0','#93C5FD','#86EFAC','#F9A8D4','#FCD34D'];
+const genNames=['Prophet ﷺ','Ṣaḥāba','Tābiʿūn','Atbāʿ al-Tābiʿīn','Imāms','Compilers'];
+
+let svg,simulation,linkSel,nodeSel,labelSel,zoomBeh,mainG;
+let selectedNarrator=null;
+let curFilter={gen:'all',rel:new Set(['thiqah','sadooq','daif','majhul','kazzab'])};
+
+function getFiltered(){
+  const filtN=narrators.filter(n=>{
+    if(curFilter.gen!=='all'&&n.generation!==parseInt(curFilter.gen))return false;
+    if(!curFilter.rel.has(n.reliability))return false;
+    return true;
+  });
+  const ids=new Set(filtN.map(n=>n.id));
+  const filtE=edges.filter(e=>{
+    const {s,t}=GT.edgeId(e); return ids.has(s)&&ids.has(t);
+  });
+  return{nodes:filtN,links:filtE};
+}
+
+function nRadius(d){
+  const dc=GT.degreeCentrality(narrators,edges);
+  return Math.max(9, Math.sqrt((dc[d.id]?.total||1))*3.8+7);
+}
+
+function initGraph(){
+  const cont=document.getElementById('graph-container');
+  const W=cont.clientWidth, H=cont.clientHeight;
+  svg=d3.select('#graph-svg').attr('width',W).attr('height',H);
+
+  svg.append('defs').html(`
+    <marker id="arr-gold" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M1.5 1.5L8.5 5L1.5 8.5" fill="none" stroke="#c8952a" stroke-width="1.5" stroke-linecap="round"/>
+    </marker>
+    <marker id="arr-gray" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M1.5 1.5L8.5 5L1.5 8.5" fill="none" stroke="#4b5563" stroke-width="1.5" stroke-linecap="round"/>
+    </marker>
+    <marker id="arr-yellow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M1.5 1.5L8.5 5L1.5 8.5" fill="none" stroke="#e4af4a" stroke-width="1.8" stroke-linecap="round"/>
+    </marker>
+  `);
+
+  zoomBeh=d3.zoom().scaleExtent([0.15,5]).on('zoom',ev=>mainG.attr('transform',ev.transform));
+  svg.call(zoomBeh).on('dblclick.zoom',null);
+
+  mainG=svg.append('g').attr('id','main-group');
+  mainG.append('g').attr('id','link-g');
+  mainG.append('g').attr('id','node-g');
+  mainG.append('g').attr('id','label-g');
+
+  linkSel=d3.select('#link-g');
+  nodeSel=d3.select('#node-g');
+  labelSel=d3.select('#label-g');
+
+  renderGraph();
+}
+
+function renderGraph(){
+  const{nodes,links}=getFiltered();
+  const cont=document.getElementById('graph-container');
+  const W=cont.clientWidth, H=cont.clientHeight;
+
+  const simNodes=nodes.map(n=>({...n}));
+  const simLinks=links.map(e=>{
+    const{s,t}=GT.edgeId(e);
+    return{source:s,target:t,method:e.method};
+  });
+
+  if(simulation)simulation.stop();
+
+  simulation=d3.forceSimulation(simNodes)
+    .force('link',d3.forceLink(simLinks).id(d=>d.id).distance(d=>{
+      const sn=simNodes.find(n=>n.id===(typeof d.source==='object'?d.source.id:d.source));
+      const tn=simNodes.find(n=>n.id===(typeof d.target==='object'?d.target.id:d.target));
+      return sn&&tn ? Math.abs(tn.generation-sn.generation)*55+75 : 100;
+    }).strength(0.7))
+    .force('charge',d3.forceManyBody().strength(-420))
+    .force('center',d3.forceCenter(W/2,H/2))
+    .force('collision',d3.forceCollide(d=>nRadius(d)+14))
+    .force('y',d3.forceY(d=>(d.generation/5)*(H-100)+50).strength(0.45));
+
+  // Render links
+  linkSel.selectAll('*').remove();
+  const links_sel=linkSel.selectAll('line').data(simLinks).join('line')
+    .attr('stroke',d=>d.method==='سماع'?'#c8952a':'#374151')
+    .attr('stroke-width',d=>d.method==='سماع'?1.8:1.4)
+    .attr('stroke-dasharray',d=>d.method==='إجازة'?'6,3':null)
+    .attr('stroke-opacity',0.65)
+    .attr('marker-end',d=>d.method==='سماع'?'url(#arr-gold)':'url(#arr-gray)');
+
+  // Render nodes
+  nodeSel.selectAll('*').remove();
+  const node_g=nodeSel.selectAll('g').data(simNodes).join('g')
+    .style('cursor','pointer')
+    .call(d3.drag().on('start',ds).on('drag',dd).on('end',de))
+    .on('click',(ev,d)=>selectNarr(d))
+    .on('mouseover',(ev,d)=>showTT(ev,d))
+    .on('mouseout',hideTT);
+
+  // Ring (generation indicator)
+  node_g.append('circle')
+    .attr('r',d=>nRadius(d)+4)
+    .attr('fill','none')
+    .attr('stroke',d=>genRing[d.generation]||'#444')
+    .attr('stroke-width',d=>d.generation===0?2.5:1.5)
+    .attr('stroke-opacity',d=>d.generation===0?0.9:0.35);
+
+  // Main node circle
+  node_g.append('circle')
+    .attr('r',d=>nRadius(d))
+    .attr('fill',d=>relColor[d.reliability]||'#94a3b8')
+    .attr('fill-opacity',0.88)
+    .attr('stroke','#080e18')
+    .attr('stroke-width',1.5)
+    .attr('class','main-circle');
+
+  // Render labels
+  labelSel.selectAll('*').remove();
+  const labs=labelSel.selectAll('text').data(simNodes).join('text')
+    .attr('text-anchor','middle')
+    .attr('font-family','Georgia,serif')
+    .attr('fill','#c8b98a')
+    .attr('font-size',d=>d.generation===0?11:9)
+    .attr('pointer-events','none')
+    .text(d=>{
+      const p=d.name.replace(' ﷺ','').split(' ');
+      if(d.generation===0)return'Prophet ﷺ';
+      if(p.length<=2)return d.name.replace(' ﷺ','');
+      return p[0]+' '+p[p.length-1];
+    });
+
+  simulation.on('tick',()=>{
+    links_sel
+      .attr('x1',d=>{ const{dx,dy,dist}=vec(d); const r=nRadius(d.source)+1; return dist>r?d.source.x+dx/dist*r:d.source.x; })
+      .attr('y1',d=>{ const{dx,dy,dist}=vec(d); const r=nRadius(d.source)+1; return dist>r?d.source.y+dy/dist*r:d.source.y; })
+      .attr('x2',d=>{ const{dx,dy,dist}=vec(d); const r=nRadius(d.target)+7; return dist>r?d.target.x-dx/dist*r:d.target.x; })
+      .attr('y2',d=>{ const{dx,dy,dist}=vec(d); const r=nRadius(d.target)+7; return dist>r?d.target.y-dy/dist*r:d.target.y; });
+    node_g.attr('transform',d=>`translate(${d.x},${d.y})`);
+    labs.attr('x',d=>d.x).attr('y',d=>d.y+nRadius(d)+13);
+  });
+
+  updateStats();
+  rebuildSelects();
+  updateCentralityList();
+
+  // Gentle initial zoom
+  setTimeout(()=>fitGraph(false),600);
+}
+
+function vec(d){
+  const dx=d.target.x-d.source.x, dy=d.target.y-d.source.y;
+  return{dx,dy,dist:Math.sqrt(dx*dx+dy*dy)||1};
+}
+
+function ds(ev){if(!ev.active)simulation.alphaTarget(0.3).restart(); ev.subject.fx=ev.subject.x; ev.subject.fy=ev.subject.y;}
+function dd(ev){ev.subject.fx=ev.x; ev.subject.fy=ev.y;}
+function de(ev){if(!ev.active)simulation.alphaTarget(0); ev.subject.fx=null; ev.subject.fy=null;}
+
+function showTT(ev,d){
+  const tt=document.getElementById('tooltip');
+  const dc=GT.degreeCentrality(narrators,edges);
+  tt.innerHTML=`<div style="color:#e4af4a;font-size:13px;margin-bottom:3px;font-family:serif">${d.arabic}</div><div style="font-size:10px;color:#94a3b8">${d.name}</div><div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap"><span style="font-size:9px;color:${relColor[d.reliability]}">${d.reliability}</span><span style="font-size:9px;color:#64748b">${genNames[d.generation]||''}</span>${d.death?`<span style="font-size:9px;color:#475569">d.${d.death}AH</span>`:''}</div><div style="margin-top:4px;font-size:9px;color:#475569">In: ${dc[d.id]?.in||0} · Out: ${dc[d.id]?.out||0}</div>`;
+  const cont=document.getElementById('graph-container');
+  const rect=cont.getBoundingClientRect();
+  tt.style.opacity='1';
+  tt.style.left=(ev.clientX-rect.left+14)+'px';
+  tt.style.top=(ev.clientY-rect.top+14)+'px';
+}
+function hideTT(){document.getElementById('tooltip').style.opacity='0';}
+
+function selectNarr(d){
+  selectedNarrator=d;
+  nodeSel.selectAll('.main-circle').attr('stroke','#080e18').attr('stroke-width',1.5);
+  nodeSel.selectAll('g').filter(n=>n.id===d.id).select('.main-circle').attr('stroke','#e4af4a').attr('stroke-width',3);
+
+  const{links}=getFiltered();
+  const conn=new Set([d.id]);
+  links.forEach(e=>{const{s,t}=GT.edgeId(e); if(s===d.id)conn.add(t); if(t===d.id)conn.add(s);});
+  nodeSel.selectAll('g').style('opacity',n=>conn.has(n.id)?1:0.18);
+  linkSel.selectAll('line').style('opacity',e=>{const{s,t}=GT.edgeId(e);return(s===d.id||t===d.id)?0.9:0.06;});
+  labelSel.selectAll('text').style('opacity',n=>conn.has(n.id)?1:0.12);
+
+  showNarrDetail(d);
+}
+
+function showNarrDetail(d){
+  const dc=GT.degreeCentrality(narrators,edges);
+  const bc=GT.betweenness(narrators,edges);
+  document.getElementById('no-sel').style.display='none';
+  const det=document.getElementById('narrator-detail');
+  det.style.display='block';
+
+  const teachers=edges.filter(e=>{const{t}=GT.edgeId(e);return t===d.id;})
+    .map(e=>{const{s}=GT.edgeId(e);return narrators.find(n=>n.id===s)?.name||s;});
+  const students=edges.filter(e=>{const{s}=GT.edgeId(e);return s===d.id;})
+    .map(e=>{const{t}=GT.edgeId(e);return narrators.find(n=>n.id===t)?.name||t;});
+
+  document.getElementById('narrator-card').innerHTML=`
+    <div class="narrator-arabic">${d.arabic}</div>
+    <div class="narrator-name">${d.name}</div>
+    <div class="meta-badges">
+      <span class="mbadge ${d.reliability}">${d.reliability.charAt(0).toUpperCase()+d.reliability.slice(1)}</span>
+      <span class="mbadge gen">${genNames[d.generation]||''}</span>
+      ${d.death?`<span class="mbadge neutral">d. ${d.death} AH</span>`:''}
+      ${d.location?`<span class="mbadge neutral">${d.location}</span>`:''}
+    </div>
+    <div class="mini-stats">
+      <div class="mstat"><div class="msv">${dc[d.id]?.in||0}</div><div class="msl">Teachers</div></div>
+      <div class="mstat"><div class="msv">${dc[d.id]?.out||0}</div><div class="msl">Students</div></div>
+      <div class="mstat"><div class="msv">${((bc[d.id]||0)*100).toFixed(1)}%</div><div class="msl">Betweenness</div></div>
+      <div class="mstat"><div class="msv">${dc[d.id]?.total||0}</div><div class="msl">Total Links</div></div>
+    </div>
+    ${d.bio?`<div class="bio">${d.bio}</div>`:''}
+    ${teachers.length?`<div class="conn-section"><div class="conn-title">Narrated from</div><div class="conn-list">${teachers.join(' · ')}</div></div>`:''}
+    ${students.length?`<div class="conn-section"><div class="conn-title">Transmitted to</div><div class="conn-list">${students.join(' · ')}</div></div>`:''}
+    <div style="margin-top:8px">
+      <button class="btn" onclick="traceChains('${d.id}')" style="width:100%">Trace All Chains from Prophet ﷺ</button>
+    </div>
+  `;
+}
+
+function traceChains(tgt){
+  const paths=GT.allPaths(edges,'prophet',tgt);
+  const name=narrators.find(n=>n.id===tgt)?.name||tgt;
+  showAnalysis(`Isnad chains → ${name.replace(' ﷺ','')}`,paths);
+}
+
+function showAnalysis(title,paths,highlightFirst=true){
+  document.getElementById('analysis-out').style.display='block';
+  const el=document.getElementById('analysis-content');
+  if(!paths||paths.length===0){
+    el.innerHTML=`<div style="color:#f97316;font-size:11px;font-family:-apple-system,sans-serif;padding:6px 0">No path found between selected narrators.</div>`;
+    return;
+  }
+
+  let html=`<div style="font-size:10px;color:#475569;margin-bottom:8px;font-family:-apple-system,sans-serif">${paths.length} chain${paths.length!==1?'s':''} found</div>`;
+  paths.slice(0,6).forEach((path,i)=>{
+    const gr=GT.chainGrade(path,narrators);
+    html+=`<div class="analysis-box">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+        <span style="font-size:9px;color:#475569;font-family:-apple-system,sans-serif">Chain ${i+1} · ${path.length-1} links</span>
+        <span style="font-size:9px;padding:1px 6px;border-radius:2px;background:${gr.color}18;color:${gr.color};font-family:-apple-system,sans-serif">${gr.grade}</span>
+      </div>
+      <div class="chain-row">
+        ${path.map((id,j)=>{
+          const nd=narrators.find(x=>x.id===id);
+          const arName=nd?nd.arabic:id;
+          return (j>0?'<span class="carrw">←</span>':'')+`<span class="cnode" style="border-color:${nd?relColor[nd.reliability]+'40':'#1e293b'}">${arName}</span>`;
+        }).join('')}
+      </div>
+    </div>`;
+  });
+  if(paths.length>6) html+=`<div style="font-size:9px;color:#334155;text-align:center;padding:4px 0;font-family:-apple-system,sans-serif">…and ${paths.length-6} more chains</div>`;
+  el.innerHTML=html;
+
+  if(highlightFirst&&paths.length>0) highlightPath(paths[0]);
+}
+
+function highlightPath(path){
+  const ps=new Set(path);
+  const pe=new Set();
+  for(let i=0;i<path.length-1;i++) pe.add(path[i]+'→'+path[i+1]);
+
+  nodeSel.selectAll('.main-circle').attr('stroke',d=>ps.has(d.id)?'#e4af4a':'#080e18').attr('stroke-width',d=>ps.has(d.id)?3:1.5);
+  nodeSel.selectAll('g').style('opacity',d=>ps.has(d.id)?1:0.12);
+  linkSel.selectAll('line')
+    .style('opacity',d=>{const{s,t}=GT.edgeId(d);return pe.has(s+'→'+t)?1:0.05;})
+    .attr('stroke',d=>{const{s,t}=GT.edgeId(d);return pe.has(s+'→'+t)?'#e4af4a':'#c8952a';})
+    .attr('stroke-width',d=>{const{s,t}=GT.edgeId(d);return pe.has(s+'→'+t)?3:1.8;})
+    .attr('marker-end',d=>{const{s,t}=GT.edgeId(d);return pe.has(s+'→'+t)?'url(#arr-yellow)':'url(#arr-gold)';});
+  labelSel.selectAll('text').style('opacity',d=>ps.has(d.id)?1:0.1);
+}
+
+// ═══════════════════════════════════════════════════════
+// UI FUNCTIONS
+// ═══════════════════════════════════════════════════════
+
+function updateStats(){
+  const{nodes,links}=getFiltered();
+  document.getElementById('sn').textContent=nodes.length;
+  document.getElementById('se').textContent=links.length;
+  document.getElementById('sd').textContent=GT.density(nodes,links);
+  document.getElementById('hdr-info').textContent=`${narrators.length} narrators · ${edges.length} links`;
+
+  // Count chains prophet→compilers
+  let tc=0;
+  const compilers=nodes.filter(n=>n.generation===5).map(n=>n.id);
+  if(nodes.find(n=>n.id==='prophet')){
+    compilers.forEach(c=>{ tc+=Math.min(GT.allPaths(links,'prophet',c).length,20); });
+  }
+  document.getElementById('sc').textContent=tc>0?tc+'+':'0';
+}
+
+function rebuildSelects(){
+  const sorted=[...narrators].sort((a,b)=>a.generation-b.generation||a.name.localeCompare(b.name));
+  ['path-from','path-to','ef-from','ef-to'].forEach(id=>{
+    const el=document.getElementById(id);
+    const prev=el.value;
+    el.innerHTML=sorted.map(n=>`<option value="${n.id}">${genNames[n.generation]}: ${n.name.replace(' ﷺ','')}</option>`).join('');
+    if(prev) el.value=prev;
+  });
+  document.getElementById('path-from').value='prophet';
+  document.getElementById('path-to').value='bukhari';
+}
+
+function updateCentralityList(){
+  const dc=GT.degreeCentrality(narrators,edges);
+  const sorted=narrators.map(n=>({n,d:dc[n.id]?.total||0})).sort((a,b)=>b.d-a.d).slice(0,8);
+  const max=sorted[0]?.d||1;
+  document.getElementById('centrality-list').innerHTML=sorted.map(({n,d})=>`
+    <div style="margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px;font-family:-apple-system,sans-serif">
+        <span style="color:#94a3b8">${n.arabic}</span>
+        <span style="color:#e4af4a">${d}</span>
+      </div>
+      <div class="mbar-wrap"><div class="mbar-fill" style="width:${(d/max*100).toFixed(0)}%;background:${relColor[n.reliability]}"></div></div>
+    </div>
+  `).join('');
+}
+
+function findShortestPath(){
+  const from=document.getElementById('path-from').value;
+  const to=document.getElementById('path-to').value;
+  const path=GT.shortestPath(edges,from,to);
+  showAnalysis(`Shortest path (${path?path.length-1:'∞'} links)`,[path].filter(Boolean));
+}
+
+function findAllPathsUI(){
+  const from=document.getElementById('path-from').value;
+  const to=document.getElementById('path-to').value;
+  const paths=GT.allPaths(edges,from,to);
+  showAnalysis(`All chains`,paths);
+}
+
+function detectCycles(){
+  const cycles=GT.detectCycles(narrators,edges);
+  document.getElementById('analysis-out').style.display='block';
+  const el=document.getElementById('analysis-content');
+  if(cycles.length===0){
+    el.innerHTML=`<div class="analysis-box"><div style="color:#10b981;font-size:12px;font-family:-apple-system,sans-serif;margin-bottom:5px">✓ No cycles detected</div><div style="font-size:10px;color:#475569;font-family:-apple-system,sans-serif;line-height:1.6">The Isnad network is a <strong style="color:#64748b">Directed Acyclic Graph (DAG)</strong>. All transmission flows strictly forward in time — no narrator appears in their own chain of transmission, which is a fundamental requirement of valid isnad structure.</div></div>`;
+  } else {
+    el.innerHTML=`<div style="color:#f97316;font-size:11px;margin-bottom:6px;font-family:-apple-system,sans-serif">⚠ ${cycles.length} cycle(s) found — problematic Isnad structure</div>`+
+      cycles.map(c=>`<div class="analysis-box"><div class="chain-row">${c.map(id=>`<span class="cnode">${narrators.find(n=>n.id===id)?.arabic||id}</span>`).join('<span class="carrw">→</span>')}</div></div>`).join('');
+  }
+}
+
+function calcBetweenness(){
+  const bc=GT.betweenness(narrators,edges);
+  const sorted=narrators.map(n=>({n,b:bc[n.id]||0})).sort((a,x)=>x.b-a.b).slice(0,10);
+  const max=sorted[0]?.b||1;
+  document.getElementById('analysis-out').style.display='block';
+  document.getElementById('analysis-content').innerHTML=`
+    <div style="font-size:9px;color:#475569;line-height:1.6;margin-bottom:8px;font-family:-apple-system,sans-serif">Betweenness centrality identifies <em style="color:#94a3b8">critical links</em> in the transmission chain — narrators who appear most frequently on shortest paths between all pairs. A high score indicates a single point of failure.</div>
+    ${sorted.map(({n,b})=>`
+      <div style="margin-bottom:7px">
+        <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px;font-family:-apple-system,sans-serif">
+          <span style="color:#d4c5a9;font-family:serif">${n.arabic}</span>
+          <span style="color:#e4af4a">${(b*100).toFixed(2)}%</span>
+        </div>
+        <div class="mbar-wrap"><div class="mbar-fill" style="width:${(b/max*100).toFixed(0)}%;background:${relColor[n.reliability]}"></div></div>
+      </div>
+    `).join('')}
+  `;
+}
+
+function showClusterInfo(){
+  const comps=GT.connectedComponents(narrators,edges);
+  document.getElementById('analysis-out').style.display='block';
+  document.getElementById('analysis-content').innerHTML=`
+    <div style="font-size:10px;color:#475569;margin-bottom:8px;font-family:-apple-system,sans-serif">${comps.length} connected component${comps.length!==1?'s':''} in the undirected graph</div>
+    ${comps.sort((a,b)=>b.length-a.length).map((comp,i)=>`
+      <div class="analysis-box">
+        <div style="font-size:9px;color:#64748b;margin-bottom:4px;font-family:-apple-system,sans-serif">Component ${i+1} · ${comp.length} narrators</div>
+        <div style="font-size:9px;color:#94a3b8;font-family:-apple-system,sans-serif;line-height:1.7">${comp.map(id=>narrators.find(n=>n.id===id)?.arabic||id).join(' · ')}</div>
+      </div>
+    `).join('')}
+  `;
+}
+
+function addNarrator(){
+  const nm=document.getElementById('nn-name').value.trim();
+  const ar=document.getElementById('nn-arabic').value.trim();
+  if(!nm||!ar){alert('Please enter both English and Arabic names.');return;}
+  const id='n_'+Date.now();
+  narrators.push({id,name:nm,arabic:ar,generation:parseInt(document.getElementById('nn-gen').value),reliability:document.getElementById('nn-rel').value,death:document.getElementById('nn-death').value?parseInt(document.getElementById('nn-death').value):null,location:document.getElementById('nn-loc').value.trim()||'',bio:''});
+  ['nn-name','nn-arabic','nn-death','nn-loc'].forEach(i=>document.getElementById(i).value='');
+  renderGraph();
+}
+
+function addEdge(){
+  const fr=document.getElementById('ef-from').value;
+  const to=document.getElementById('ef-to').value;
+  const mt=document.getElementById('ef-method').value;
+  if(fr===to){alert('A narrator cannot transmit to themselves.');return;}
+  if(edges.some(e=>{const{s,t}=GT.edgeId(e);return s===fr&&t===to;})){alert('This transmission link already exists.');return;}
+  edges.push({source:fr,target:to,method:mt});
+  renderGraph();
+}
+
+function toggleCollapse(id){
+  const el=document.getElementById(id);
+  const arr=document.getElementById('arr-'+id);
+  const open=el.classList.contains('open');
+  el.classList.toggle('open',!open);
+  arr.textContent=open?'▶':'▼';
+}
+
+function zoomIn(){svg.transition().duration(300).call(zoomBeh.scaleBy,1.4);}
+function zoomOut(){svg.transition().duration(300).call(zoomBeh.scaleBy,0.72);}
+function fitGraph(animate=true){
+  const cont=document.getElementById('graph-container');
+  const W=cont.clientWidth, H=cont.clientHeight;
+  const t=d3.zoomIdentity.translate(W/2,H/2).scale(0.85);
+  if(animate) svg.transition().duration(700).call(zoomBeh.transform,t);
+  else svg.call(zoomBeh.transform,t);
+}
+function resetView(){
+  nodeSel.selectAll('g').style('opacity',1);
+  nodeSel.selectAll('.main-circle').attr('stroke','#080e18').attr('stroke-width',1.5);
+  linkSel.selectAll('line').style('opacity',0.65).attr('stroke',d=>d.method==='سماع'?'#c8952a':'#374151').attr('stroke-width',d=>d.method==='سماع'?1.8:1.4).attr('marker-end',d=>d.method==='سماع'?'url(#arr-gold)':'url(#arr-gray)');
+  labelSel.selectAll('text').style('opacity',1);
+  selectedNarrator=null;
+  document.getElementById('narrator-detail').style.display='none';
+  document.getElementById('no-sel').style.display='block';
+  document.getElementById('analysis-out').style.display='none';
+  fitGraph();
+}
+
+// ═══════════════════════════════════════════════════════
+// FILTER LISTENERS
+// ═══════════════════════════════════════════════════════
+
+document.querySelectorAll('.gpill').forEach(p=>{
+  p.addEventListener('click',function(){
+    document.querySelectorAll('.gpill').forEach(x=>x.classList.remove('active'));
+    this.classList.add('active');
+    curFilter.gen=this.dataset.gen;
+    renderGraph();
+  });
+});
+
+document.querySelectorAll('#rel-filters input').forEach(cb=>{
+  cb.addEventListener('change',function(){
+    if(this.checked)curFilter.rel.add(this.dataset.rel);
+    else curFilter.rel.delete(this.dataset.rel);
+    renderGraph();
+  });
+});
+
+window.addEventListener('load',()=>{
+  initGraph();
+  rebuildSelects();
+});
+
+window.addEventListener('resize',()=>{
+  const c=document.getElementById('graph-container');
+  svg.attr('width',c.clientWidth).attr('height',c.clientHeight);
+  if(simulation) simulation.force('center',d3.forceCenter(c.clientWidth/2,c.clientHeight/2)).alpha(0.3).restart();
+});
+</script>
+</body>
+</html>
